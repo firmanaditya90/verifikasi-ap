@@ -1,174 +1,189 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 import os
+from datetime import date
 
-# ---------------- CONFIG ----------------
-st.set_page_config(
-    page_title="AP 3-Way Matching",
-    page_icon="📑",
-    layout="wide"
-)
-
-PASSWORD = "apteam123"  # Ganti sesuai kebutuhan
+# -----------------------------
+# Konfigurasi
+# -----------------------------
+st.set_page_config(page_title="AP Verification System", layout="wide")
 DB_PATH = "db.csv"
+PASSWORD = "apteam123"
 
-# ---------------- DATA UTILS ----------------
+# -----------------------------
+# Helper Functions
+# -----------------------------
 def ensure_db():
     if not os.path.exists(DB_PATH):
         pd.DataFrame(columns=["no_spm"]).to_csv(DB_PATH, index=False)
-
-def save_row(row: dict):
-    ensure_db()
-    df = pd.read_csv(DB_PATH, keep_default_na=False)
-
-    if row["no_spm"] in df["no_spm"].values:
-        # replace row dengan SPM sama
-        df = df[df["no_spm"] != row["no_spm"]]
-        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-    else:
-        # append baru
-        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-
-    df.to_csv(DB_PATH, index=False)
 
 def load_data():
     ensure_db()
     return pd.read_csv(DB_PATH, keep_default_na=False)
 
-# ---------------- LOGIN ----------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+def save_row(row: dict):
+    ensure_db()
+    df = pd.read_csv(DB_PATH, keep_default_na=False)
+    if row["no_spm"] in df["no_spm"].values:
+        df = df[df["no_spm"] != row["no_spm"]]
+    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    df.to_csv(DB_PATH, index=False)
 
-menu_umum = st.sidebar.radio("📑 Menu Umum", ["Lihat Data Publik", "Login Tim Verifikator"])
+def load_row(no_spm: str):
+    df = load_data()
+    if no_spm in df["no_spm"].values:
+        return df[df["no_spm"] == no_spm].iloc[0].to_dict()
+    return None
 
-if menu_umum == "Login Tim Verifikator" and not st.session_state.logged_in:
-    pw = st.sidebar.text_input("🔑 Password", type="password")
-    if st.sidebar.button("Login"):
-        if pw == PASSWORD:
-            st.session_state.logged_in = True
-            st.sidebar.success("✅ Login berhasil")
-        else:
-            st.sidebar.error("❌ Password salah")
+def format_rupiah(x):
+    try:
+        return f"Rp {float(x):,.0f}"
+    except:
+        return x
 
-# ---------------- MODE LOGIN ----------------
-if st.session_state.logged_in:
+# -----------------------------
+# Halaman Publik (View Only)
+# -----------------------------
+st.sidebar.title("🔍 Navigasi")
+page = st.sidebar.radio("Menu", ["Lihat Data", "Login Verifikator"])
 
-    st.title("📑 Sistem Verifikasi 3-Way Matching - Tim Verifikator")
+if page == "Lihat Data":
+    st.title("📊 Daftar SPM (View Only)")
+    df = load_data()
+    if df.empty:
+        st.info("Belum ada data tersimpan.")
+    else:
+        st.dataframe(df)
 
-    choice = st.sidebar.radio("🔧 Menu Utama", ["Input Baru", "Edit Verifikasi", "Lihat Semua Data"])
+# -----------------------------
+# Halaman Login Verifikator
+# -----------------------------
+if page == "Login Verifikator":
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
 
-    if choice in ["Input Baru", "Edit Verifikasi"]:
-        nama_verifikator = st.text_input("Nama Verifikator")
-        if choice == "Input Baru":
-            no_spm = st.text_input("Nomor SPM")
-        else:
-            df = load_data()
-            if df.empty:
-                st.warning("Belum ada data.")
+    if not st.session_state.logged_in:
+        pw = st.text_input("🔑 Masukkan Password", type="password")
+        if st.button("Login"):
+            if pw == PASSWORD:
+                st.session_state.logged_in = True
+                st.success("✅ Login berhasil")
+            else:
+                st.error("❌ Password salah")
                 st.stop()
-            no_spm = st.selectbox("Pilih Nomor SPM", df["no_spm"].unique())
+        else:
+            st.stop()
+
+    # -----------------------------
+    # Setelah Login
+    # -----------------------------
+    st.title("🗂️ AP Verification Workspace")
+
+    choice = st.radio("Pilih Aksi", ["Input Baru", "Edit Verifikasi"])
+
+    # -----------------------------
+    # Input Baru
+    # -----------------------------
+    if choice == "Input Baru":
+        st.subheader("📥 Input Baru")
+        nama_verifikator = st.text_input("Nama Verifikator")
+        no_spm = st.text_input("Nomor SPM")
+
+        if no_spm:
+            tabs = st.tabs([
+                "📄 Kontrak", "📝 Berita Acara", "📑 Dokumen Penagihan",
+                "🔍 3-Way Matching", "✅ Status Transaksi"
+            ])
+
+            # ---- Tab Kontrak ----
+            with tabs[0]:
+                judul_kontrak = st.text_input("Judul Kontrak / Pekerjaan")
+                tgl_kontrak = st.date_input("Tanggal Kontrak Pekerjaan", value=date.today())
+                col1, col2 = st.columns(2)
+                mulai = col1.date_input("Tanggal Mulai Pekerjaan", value=date.today())
+                selesai = col2.date_input("Tanggal Selesai Pekerjaan", value=date.today())
+
+                dpp = st.number_input("DPP (Rp)", min_value=0.0, step=1000.0, format="%.0f")
+                ppn = dpp * 0.11
+                total = dpp + ppn
+                st.info(f"PPN (11%): {format_rupiah(ppn)}")
+                st.info(f"Total Nilai Pekerjaan: {format_rupiah(total)}")
+
+                jaminan = st.checkbox("Jaminan Pelaksanaan dipersyaratkan")
+                jaminan_nilai, jaminan_mulai, jaminan_selesai = None, None, None
+                if jaminan:
+                    jaminan_nilai = st.number_input("Nilai Jaminan (Rp)", min_value=0.0, step=1000.0, format="%.0f")
+                    colj1, colj2 = st.columns(2)
+                    jaminan_mulai = colj1.date_input("Masa Berlaku - Mulai", value=date.today())
+                    jaminan_selesai = colj2.date_input("Masa Berlaku - Selesai", value=date.today())
+
+            # Tab lain bisa ditambahkan mirip format di atas...
+
+            if st.button("💾 Simpan"):
+                row = {
+                    "nama_verifikator": nama_verifikator,
+                    "no_spm": no_spm,
+                    "judul_kontrak": judul_kontrak,
+                    "tgl_kontrak": tgl_kontrak,
+                    "mulai": mulai,
+                    "selesai": selesai,
+                    "dpp": dpp,
+                    "ppn": ppn,
+                    "total": total,
+                    "jaminan": jaminan,
+                    "jaminan_nilai": jaminan_nilai,
+                    "jaminan_mulai": jaminan_mulai,
+                    "jaminan_selesai": jaminan_selesai,
+                }
+                save_row(row)
+                st.success(f"✅ Data SPM {no_spm} berhasil disimpan/diupdate!")
+
+    # -----------------------------
+    # Edit Verifikasi
+    # -----------------------------
+    elif choice == "Edit Verifikasi":
+        df = load_data()
+        if df.empty:
+            st.warning("Belum ada data tersimpan.")
+            st.stop()
+        no_spm = st.selectbox("Pilih Nomor SPM", df["no_spm"].unique())
+        data_lama = load_row(no_spm)
+
+        nama_verifikator = st.text_input("Nama Verifikator", value=data_lama.get("nama_verifikator", ""))
 
         tabs = st.tabs([
-            "📄 Kontrak", 
-            "📝 Berita Acara", 
-            "📑 Dokumen Penagihan",
-            "🔍 3-Way Matching", 
-            "✅ Status Transaksi"
+            "📄 Kontrak", "📝 Berita Acara", "📑 Dokumen Penagihan",
+            "🔍 3-Way Matching", "✅ Status Transaksi"
         ])
 
-        # ---- Tab 1: Kontrak ----
+        # ---- Tab Kontrak ----
         with tabs[0]:
-            st.subheader("Dasar Pekerjaan / Kontrak Perjanjian")
-            judul_kontrak = st.text_input("Judul Kontrak / Pekerjaan")
-            tgl_kontrak = st.date_input("Tanggal Kontrak Pekerjaan")
+            judul_kontrak = st.text_input("Judul Kontrak / Pekerjaan", value=data_lama.get("judul_kontrak", ""))
+            tgl_kontrak = st.date_input("Tanggal Kontrak Pekerjaan", value=pd.to_datetime(data_lama.get("tgl_kontrak")))
             col1, col2 = st.columns(2)
-            mulai = col1.date_input("Tanggal Mulai Pekerjaan")
-            selesai = col2.date_input("Tanggal Selesai Pekerjaan")
+            mulai = col1.date_input("Tanggal Mulai Pekerjaan", value=pd.to_datetime(data_lama.get("mulai")))
+            selesai = col2.date_input("Tanggal Selesai Pekerjaan", value=pd.to_datetime(data_lama.get("selesai")))
 
-            # Input DPP, auto hitung PPN & total
-            dpp = st.number_input("DPP (Rp)", min_value=0.0, step=1000.0, format="%.0f")
+            dpp = st.number_input("DPP (Rp)", min_value=0.0, step=1000.0,
+                                  value=float(data_lama.get("dpp", 0)), format="%.0f")
             ppn = dpp * 0.11
             total = dpp + ppn
-            st.info(f"PPN (11%): Rp {ppn:,.0f}")
-            st.info(f"Total Nilai Pekerjaan: Rp {total:,.0f}")
+            st.info(f"PPN (11%): {format_rupiah(ppn)}")
+            st.info(f"Total Nilai Pekerjaan: {format_rupiah(total)}")
 
-            # Jaminan
-            jaminan = st.checkbox("Jaminan Pelaksanaan dipersyaratkan")
+            jaminan = st.checkbox("Jaminan Pelaksanaan dipersyaratkan", value=bool(data_lama.get("jaminan", False)))
             jaminan_nilai, jaminan_mulai, jaminan_selesai = None, None, None
             if jaminan:
-                jaminan_nilai = st.number_input("Nilai Jaminan (Rp)", min_value=0.0, step=1000.0, format="%.0f")
+                jaminan_nilai = st.number_input("Nilai Jaminan (Rp)", min_value=0.0, step=1000.0,
+                                                value=float(data_lama.get("jaminan_nilai", 0)), format="%.0f")
                 colj1, colj2 = st.columns(2)
-                jaminan_mulai = colj1.date_input("Masa Berlaku - Mulai")
-                jaminan_selesai = colj2.date_input("Masa Berlaku - Selesai")
+                jaminan_mulai = colj1.date_input("Masa Berlaku - Mulai", value=pd.to_datetime(data_lama.get("jaminan_mulai")))
+                jaminan_selesai = colj2.date_input("Masa Berlaku - Selesai", value=pd.to_datetime(data_lama.get("jaminan_selesai")))
 
-        # ---- Tab 2: Berita Acara ----
-        with tabs[1]:
-            tgl_ba = st.date_input("Tanggal Berita Acara")
-            progress = st.text_area("Progress Pekerjaan")
-
-        # ---- Tab 3: Dokumen Penagihan ----
-        with tabs[2]:
-            judul_tagihan = st.text_input("Judul Tagihan")
-            syarat_progress = st.text_input("Progress pekerjaan (syarat kontrak)")
-            syarat_persen = st.number_input("Nilai % dalam kontrak", min_value=0, max_value=100)
-            tgl_dok = st.date_input("Tanggal Dokumen Penagihan")
-
-            st.markdown("#### Invoice")
-            inv_dpp = st.number_input("Invoice DPP (Rp)", min_value=0.0, step=1000.0, format="%.0f")
-            inv_ppn = inv_dpp * 0.11
-            inv_total = inv_dpp + inv_ppn
-            st.info(f"PPN (11%): Rp {inv_ppn:,.0f}")
-            st.info(f"Total Invoice: Rp {inv_total:,.0f}")
-
-            st.markdown("#### Faktur Pajak")
-            col4, col5 = st.columns(2)
-            faktur_no = col4.text_input("Nomor Faktur Pajak")
-            faktur_tgl = col5.date_input("Tanggal Faktur Pajak")
-            faktur_dpp = inv_dpp
-            faktur_ppn = inv_ppn
-
-        # ---- Tab 4: Matching ----
-        with tabs[3]:
-            st.subheader("Hasil 3-Way Matching")
-            checks = []
-            if mulai <= tgl_ba <= selesai:
-                checks.append("✅ Tanggal BA dalam range kontrak")
-            else:
-                checks.append("❌ Tanggal BA di luar kontrak")
-
-            if inv_total == total:
-                checks.append("✅ Nilai invoice sesuai kontrak")
-            else:
-                checks.append("❌ Nilai invoice tidak sesuai kontrak")
-
-            if faktur_tgl == tgl_dok:
-                checks.append("✅ Tanggal faktur = tanggal invoice")
-            else:
-                checks.append("❌ Tanggal faktur ≠ tanggal invoice")
-
-            if faktur_ppn == inv_ppn:
-                checks.append("✅ PPN faktur = PPN invoice")
-            else:
-                checks.append("❌ PPN faktur ≠ PPN invoice")
-
-            st.write("\n".join(checks))
-
-        # ---- Tab 5: Status ----
-        with tabs[4]:
-            st.subheader("Status Transaksi")
-            approved = st.checkbox("Disetujui (Approve)")
-            alasan = None
-            if approved:
-                st.success(f"✅ Approved pada {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            else:
-                alasan = st.text_area("Alasan tidak disetujui")
-
-        # ---- Tombol Simpan ----
-        if st.button("💾 Simpan Data"):
+        if st.button("💾 Update"):
             row = {
-                "no_spm": no_spm,
                 "nama_verifikator": nama_verifikator,
+                "no_spm": no_spm,
                 "judul_kontrak": judul_kontrak,
                 "tgl_kontrak": tgl_kontrak,
                 "mulai": mulai,
@@ -180,36 +195,6 @@ if st.session_state.logged_in:
                 "jaminan_nilai": jaminan_nilai,
                 "jaminan_mulai": jaminan_mulai,
                 "jaminan_selesai": jaminan_selesai,
-                "tgl_ba": tgl_ba,
-                "progress": progress,
-                "judul_tagihan": judul_tagihan,
-                "syarat_progress": syarat_progress,
-                "syarat_persen": syarat_persen,
-                "tgl_dok": tgl_dok,
-                "inv_dpp": inv_dpp,
-                "inv_ppn": inv_ppn,
-                "inv_total": inv_total,
-                "faktur_no": faktur_no,
-                "faktur_tgl": faktur_tgl,
-                "faktur_dpp": faktur_dpp,
-                "faktur_ppn": faktur_ppn,
-                "approved": approved,
-                "alasan": alasan,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
             save_row(row)
-            st.success("✅ Data berhasil disimpan")
-
-    elif choice == "Lihat Semua Data":
-        st.subheader("📊 Data Semua SPM")
-        df = load_data()
-        st.dataframe(df)
-
-# ---------------- MODE PUBLIK ----------------
-elif menu_umum == "Lihat Data Publik":
-    st.title("📊 Data Publik - List SPM")
-    df = load_data()
-    if df.empty:
-        st.info("Belum ada data.")
-    else:
-        st.dataframe(df[["no_spm", "judul_kontrak", "inv_total", "approved", "timestamp"]])
+            st.success(f"✅ Data SPM {no_spm} berhasil diperbarui!")
