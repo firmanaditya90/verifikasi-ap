@@ -42,7 +42,9 @@ if not st.session_state.logged_in:
             st.success("✅ Login berhasil")
         else:
             st.error("❌ Password salah")
-    st.stop()  # hentikan sampai login sukses
+            st.stop()   # stop kalau salah
+    else:
+        st.stop()       # stop kalau belum klik login
 
 # ---------------- MENU ----------------
 st.sidebar.title("🔧 Menu Utama")
@@ -57,7 +59,7 @@ if choice == "Input Baru":
 else:
     st.subheader("✏️ Edit Verifikasi")
     nama_verifikator = st.text_input("Nama Verifikator")
-    # sementara pilih dummy, nanti diganti database
+    # sementara pilih dummy, nanti bisa connect ke database
     no_spm = st.selectbox("Pilih Nomor SPM yang sudah ada", ["SPM001", "SPM002", "SPM003"])
 
 # ---------------- TABS ----------------
