@@ -48,14 +48,19 @@ def load_data():
 def save_row(row: dict):
     ensure_db()
     df = load_data()
-    if row["no_spm"] in df["no_spm"].values:
-        df = df[df["no_spm"] != row["no_spm"]]
+    # pastikan no_spm string bersih
+    df["no_spm"] = df["no_spm"].astype(str).str.strip()
+    row["no_spm"] = str(row["no_spm"]).strip()
+    # hapus jika sudah ada no_spm yang sama
+    df = df[df["no_spm"] != row["no_spm"]]
     row["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     df.to_csv(DB_PATH, index=False)
 
 def load_row(no_spm: str):
     df = load_data()
+    df["no_spm"] = df["no_spm"].astype(str).str.strip()
+    no_spm = str(no_spm).strip()
     if no_spm in df["no_spm"].values:
         return df[df["no_spm"] == no_spm].iloc[0].to_dict()
     return None
@@ -92,7 +97,12 @@ if page == "Lihat Data":
     if df.empty:
         st.info("Belum ada data tersimpan.")
     else:
-        st.dataframe(df.fillna("").sort_values("last_updated", ascending=False).reset_index(drop=True))
+        # Format rupiah di tabel
+        view_df = df.copy()
+        for col in ["dpp", "ppn", "total", "dpp_invoice", "ppn_invoice", "total_invoice", "faktur_dpp", "faktur_ppn"]:
+            view_df[col] = view_df[col].apply(format_rupiah)
+        view_df["approved"] = view_df["approved"].apply(lambda x: "✅" if str(x) == "True" else "❌")
+        st.dataframe(view_df.fillna("").sort_values("last_updated", ascending=False).reset_index(drop=True))
 
 # -----------------------------
 # Halaman Login Verifikator
@@ -191,15 +201,19 @@ if page == "Login Verifikator":
             match_faktur_tgl = "✅" if faktur_tgl == tgl_invoice else "❌"
             match_faktur_ppn = "✅" if abs(ppn_invoice - faktur_ppn) < 1 else "❌"
             kesimpulan = "OK" if all(x == "✅" for x in [match_tanggal, match_syarat, match_nilai, match_faktur_tgl, match_faktur_ppn]) else "Perlu dicek"
-            st.write("Hasil Matching:")
-            st.json({
-                "Tanggal BA valid": match_tanggal,
-                "Syarat Penagihan": match_syarat,
-                "Nilai Invoice vs Kontrak": match_nilai,
-                "Tanggal Faktur vs Invoice": match_faktur_tgl,
-                "PPN Faktur vs Invoice": match_faktur_ppn,
-                "Kesimpulan": kesimpulan
-            })
+
+            st.subheader("📊 Ringkasan Matching")
+            summary = {
+                "Tanggal BA vs Kontrak": [match_tanggal, f"BA: {tgl_ba}, Kontrak: {mulai} s.d {selesai}"],
+                "Syarat Penagihan": [match_syarat, f"{syarat_progress} ({syarat_persen}%)"],
+                "Nilai Kontrak vs Invoice": [match_nilai, f"Kontrak: {format_rupiah(total)}, Invoice: {format_rupiah(total_invoice)}"],
+                "Tanggal Faktur vs Invoice": [match_faktur_tgl, f"Invoice: {tgl_invoice}, Faktur: {faktur_tgl}"],
+                "PPN Faktur vs Invoice": [match_faktur_ppn, f"Invoice: {format_rupiah(ppn_invoice)}, Faktur: {format_rupiah(faktur_ppn)}"],
+            }
+            df_summary = pd.DataFrame(summary, index=["Status", "Detail"]).T
+            st.table(df_summary)
+
+            st.info(f"Kesimpulan Sistem: **{kesimpulan}**")
 
         # ---- Tab Status ----
         with tabs[4]:
