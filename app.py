@@ -33,7 +33,7 @@ def save_row(row: dict):
 
 def format_rupiah(val):
     try:
-        return f"Rp {int(val):,}".replace(",", ".")
+        return f"Rp {int(float(val)):,}".replace(",", ".")
     except:
         return val
 
@@ -205,7 +205,23 @@ if menu in ["Input Baru", "Edit Verifikasi"]:
 # ---------------- LIHAT DATA PUBLIK ----------------
 elif menu == "Lihat Data Publik":
     st.subheader("📊 Data Verifikasi (Publik)")
+
     if not df.empty:
-        st.dataframe(df.fillna("").sort_values("last_updated", ascending=False))
+        df_show = df.copy()
+        df_show["total"] = df_show["total"].apply(format_rupiah)
+        df_show["approved_badge"] = df_show["approved"].apply(lambda x: "✅ Approved" if x == "ya" else "❌ Tidak Approved")
+        df_show["kesimpulan_badge"] = df_show["kesimpulan"].apply(lambda x: "🟢 OK" if x == "OK" else "🔴 Perlu dicek")
+
+        tampil = df_show[["last_updated", "no_spm", "nama_verifikator", "judul_kontrak", "total", "kesimpulan_badge", "approved_badge"]]
+        tampil = tampil.sort_values("last_updated", ascending=False)
+
+        def highlight_badge(val):
+            if "✅" in val or "🟢" in val:
+                return "background-color: #d4edda; color: #155724; font-weight: bold;"
+            elif "❌" in val or "🔴" in val:
+                return "background-color: #f8d7da; color: #721c24; font-weight: bold;"
+            return ""
+
+        st.dataframe(tampil.style.applymap(highlight_badge, subset=["kesimpulan_badge", "approved_badge"]))
     else:
         st.info("Belum ada data tersimpan.")
