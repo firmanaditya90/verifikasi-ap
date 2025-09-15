@@ -78,7 +78,6 @@ if page == "Login Verifikator":
     # Setelah Login
     # -----------------------------
     st.title("🗂️ AP Verification Workspace")
-
     choice = st.radio("Pilih Aksi", ["Input Baru", "Edit Verifikasi"])
 
     # -----------------------------
@@ -117,7 +116,43 @@ if page == "Login Verifikator":
                     jaminan_mulai = colj1.date_input("Masa Berlaku - Mulai", value=date.today())
                     jaminan_selesai = colj2.date_input("Masa Berlaku - Selesai", value=date.today())
 
-            # Tab lain bisa ditambahkan mirip format di atas...
+            # ---- Tab Berita Acara ----
+            with tabs[1]:
+                tgl_ba = st.date_input("Tanggal Berita Acara", value=date.today())
+                progress = st.text_input("Progress Pekerjaan")
+
+            # ---- Tab Dokumen Penagihan ----
+            with tabs[2]:
+                judul_tagihan = st.text_input("Judul Tagihan")
+                syarat_progress = st.text_input("Progress sesuai kontrak")
+                syarat_persen = st.number_input("Nilai % dalam kontrak", min_value=0.0, max_value=100.0, step=1.0)
+
+                tgl_invoice = st.date_input("Tanggal Dokumen Penagihan", value=date.today())
+                dpp_inv = st.number_input("DPP Invoice (Rp)", min_value=0.0, step=1000.0, format="%.0f")
+                ppn_inv = dpp_inv * 0.11
+                total_inv = dpp_inv + ppn_inv
+                st.info(f"PPN Invoice: {format_rupiah(ppn_inv)}")
+                st.info(f"Total Invoice: {format_rupiah(total_inv)}")
+
+                faktur_no = st.text_input("Nomor Faktur Pajak")
+                faktur_tgl = st.date_input("Tanggal Faktur Pajak", value=date.today())
+                faktur_dpp = st.number_input("DPP Faktur (Rp)", min_value=0.0, step=1000.0, format="%.0f")
+                faktur_ppn = faktur_dpp * 0.11
+                st.info(f"PPN Faktur: {format_rupiah(faktur_ppn)}")
+
+            # ---- Tab 3-Way Matching ----
+            with tabs[3]:
+                st.write("✅ Sistem akan membandingkan otomatis sesuai rule...")
+
+            # ---- Tab Status ----
+            with tabs[4]:
+                approved = st.checkbox("Approve?")
+                alasan = ""
+                tgl_status = date.today()
+                if not approved:
+                    alasan = st.text_area("Alasan Tidak Approve")
+                else:
+                    st.write(f"Tanggal Approve: {tgl_status}")
 
             if st.button("💾 Simpan"):
                 row = {
@@ -134,6 +169,22 @@ if page == "Login Verifikator":
                     "jaminan_nilai": jaminan_nilai,
                     "jaminan_mulai": jaminan_mulai,
                     "jaminan_selesai": jaminan_selesai,
+                    "tgl_ba": tgl_ba,
+                    "progress": progress,
+                    "judul_tagihan": judul_tagihan,
+                    "syarat_progress": syarat_progress,
+                    "syarat_persen": syarat_persen,
+                    "tgl_invoice": tgl_invoice,
+                    "dpp_inv": dpp_inv,
+                    "ppn_inv": ppn_inv,
+                    "total_inv": total_inv,
+                    "faktur_no": faktur_no,
+                    "faktur_tgl": faktur_tgl,
+                    "faktur_dpp": faktur_dpp,
+                    "faktur_ppn": faktur_ppn,
+                    "approved": approved,
+                    "alasan": alasan,
+                    "tgl_status": tgl_status,
                 }
                 save_row(row)
                 st.success(f"✅ Data SPM {no_spm} berhasil disimpan/diupdate!")
@@ -180,6 +231,47 @@ if page == "Login Verifikator":
                 jaminan_mulai = colj1.date_input("Masa Berlaku - Mulai", value=pd.to_datetime(data_lama.get("jaminan_mulai")))
                 jaminan_selesai = colj2.date_input("Masa Berlaku - Selesai", value=pd.to_datetime(data_lama.get("jaminan_selesai")))
 
+        # ---- Tab Berita Acara ----
+        with tabs[1]:
+            tgl_ba = st.date_input("Tanggal Berita Acara", value=pd.to_datetime(data_lama.get("tgl_ba")))
+            progress = st.text_input("Progress Pekerjaan", value=data_lama.get("progress", ""))
+
+        # ---- Tab Dokumen Penagihan ----
+        with tabs[2]:
+            judul_tagihan = st.text_input("Judul Tagihan", value=data_lama.get("judul_tagihan", ""))
+            syarat_progress = st.text_input("Progress sesuai kontrak", value=data_lama.get("syarat_progress", ""))
+            syarat_persen = st.number_input("Nilai % dalam kontrak", min_value=0.0, max_value=100.0, step=1.0,
+                                            value=float(data_lama.get("syarat_persen", 0)))
+
+            tgl_invoice = st.date_input("Tanggal Dokumen Penagihan", value=pd.to_datetime(data_lama.get("tgl_invoice")))
+            dpp_inv = st.number_input("DPP Invoice (Rp)", min_value=0.0, step=1000.0,
+                                      value=float(data_lama.get("dpp_inv", 0)), format="%.0f")
+            ppn_inv = dpp_inv * 0.11
+            total_inv = dpp_inv + ppn_inv
+            st.info(f"PPN Invoice: {format_rupiah(ppn_inv)}")
+            st.info(f"Total Invoice: {format_rupiah(total_inv)}")
+
+            faktur_no = st.text_input("Nomor Faktur Pajak", value=data_lama.get("faktur_no", ""))
+            faktur_tgl = st.date_input("Tanggal Faktur Pajak", value=pd.to_datetime(data_lama.get("faktur_tgl")))
+            faktur_dpp = st.number_input("DPP Faktur (Rp)", min_value=0.0, step=1000.0,
+                                         value=float(data_lama.get("faktur_dpp", 0)), format="%.0f")
+            faktur_ppn = faktur_dpp * 0.11
+            st.info(f"PPN Faktur: {format_rupiah(faktur_ppn)}")
+
+        # ---- Tab 3-Way Matching ----
+        with tabs[3]:
+            st.write("✅ Sistem membandingkan otomatis...")
+
+        # ---- Tab Status ----
+        with tabs[4]:
+            approved = st.checkbox("Approve?", value=bool(data_lama.get("approved", False)))
+            alasan = data_lama.get("alasan", "")
+            tgl_status = pd.to_datetime(data_lama.get("tgl_status"))
+            if not approved:
+                alasan = st.text_area("Alasan Tidak Approve", value=alasan)
+            else:
+                st.write(f"Tanggal Approve: {tgl_status}")
+
         if st.button("💾 Update"):
             row = {
                 "nama_verifikator": nama_verifikator,
@@ -195,6 +287,22 @@ if page == "Login Verifikator":
                 "jaminan_nilai": jaminan_nilai,
                 "jaminan_mulai": jaminan_mulai,
                 "jaminan_selesai": jaminan_selesai,
+                "tgl_ba": tgl_ba,
+                "progress": progress,
+                "judul_tagihan": judul_tagihan,
+                "syarat_progress": syarat_progress,
+                "syarat_persen": syarat_persen,
+                "tgl_invoice": tgl_invoice,
+                "dpp_inv": dpp_inv,
+                "ppn_inv": ppn_inv,
+                "total_inv": total_inv,
+                "faktur_no": faktur_no,
+                "faktur_tgl": faktur_tgl,
+                "faktur_dpp": faktur_dpp,
+                "faktur_ppn": faktur_ppn,
+                "approved": approved,
+                "alasan": alasan,
+                "tgl_status": tgl_status,
             }
             save_row(row)
             st.success(f"✅ Data SPM {no_spm} berhasil diperbarui!")
