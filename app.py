@@ -27,13 +27,19 @@ def save_row(row: dict):
     df["no_spm"] = df["no_spm"].astype(str).str.strip()
     row["no_spm"] = str(row["no_spm"]).strip()
     df = df[df["no_spm"] != row["no_spm"]]  # replace jika ada
-    row["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    row["last_updated"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     df.to_csv(DB_PATH, index=False)
 
 def format_rupiah(val):
     try:
         return f"Rp {int(float(val)):,}".replace(",", ".")
+    except:
+        return val
+
+def format_tanggal(val):
+    try:
+        return pd.to_datetime(val).strftime("%d/%m/%Y")
     except:
         return val
 
@@ -150,10 +156,10 @@ if menu in ["Input Baru", "Edit Verifikasi"]:
 
         st.subheader("📊 Ringkasan 3-Way Matching")
         summary = pd.DataFrame([
-            ["Tanggal BA vs Kontrak", match_tanggal, f"BA: {tgl_ba}, Kontrak: {mulai} s.d {selesai}"],
+            ["Tanggal BA vs Kontrak", match_tanggal, f"BA: {tgl_ba.strftime('%d/%m/%Y')}, Kontrak: {mulai.strftime('%d/%m/%Y')} s.d {selesai.strftime('%d/%m/%Y')}"],
             ["Syarat Penagihan", match_syarat, f"{syarat_progress} ({syarat_persen}%)"],
             ["Nilai Kontrak vs Invoice", match_nilai, f"Kontrak: {format_rupiah(total)}, Invoice: {format_rupiah(total_invoice)}"],
-            ["Tanggal Faktur vs Invoice", match_faktur_tgl, f"Invoice: {tgl_invoice}, Faktur: {faktur_tgl}"],
+            ["Tanggal Faktur vs Invoice", match_faktur_tgl, f"Invoice: {tgl_invoice.strftime('%d/%m/%Y')}, Faktur: {faktur_tgl.strftime('%d/%m/%Y')}"],
             ["PPN Faktur vs Invoice", match_faktur_ppn, f"Invoice: {format_rupiah(ppn_invoice)}, Faktur: {format_rupiah(faktur_ppn)}"],
         ], columns=["Pemeriksaan", "Status", "Detail"])
 
@@ -164,7 +170,7 @@ if menu in ["Input Baru", "Edit Verifikasi"]:
                 return "background-color: #f8d7da; color: #721c24; font-weight: bold;"
             return ""
 
-        st.dataframe(summary.style.applymap(highlight_status, subset=["Status"]))
+        st.dataframe(summary.style.applymap(highlight_status, subset=["Status"]), use_container_width=True)
         if kesimpulan == "OK":
             st.success(f"Kesimpulan Sistem: **{kesimpulan}**")
         else:
@@ -186,18 +192,20 @@ if menu in ["Input Baru", "Edit Verifikasi"]:
         row = {
             "nama_verifikator": nama,
             "no_spm": no_spm,
-            "judul_kontrak": judul_kontrak, "tgl_kontrak": str(tgl_kontrak),
-            "mulai": str(mulai), "selesai": str(selesai),
+            "judul_kontrak": judul_kontrak, "tgl_kontrak": tgl_kontrak.strftime("%d/%m/%Y"),
+            "mulai": mulai.strftime("%d/%m/%Y"), "selesai": selesai.strftime("%d/%m/%Y"),
             "dpp": dpp, "ppn": ppn, "total": total,
             "jaminan": "ya" if jaminan else "tidak",
-            "jaminan_nilai": jaminan_nilai, "jaminan_mulai": str(jaminan_mulai), "jaminan_selesai": str(jaminan_selesai),
-            "tgl_ba": str(tgl_ba), "progress": progress,
+            "jaminan_nilai": jaminan_nilai,
+            "jaminan_mulai": jaminan_mulai.strftime("%d/%m/%Y") if jaminan else "",
+            "jaminan_selesai": jaminan_selesai.strftime("%d/%m/%Y") if jaminan else "",
+            "tgl_ba": tgl_ba.strftime("%d/%m/%Y"), "progress": progress,
             "judul_tagihan": judul_tagihan, "syarat_progress": syarat_progress, "syarat_persen": syarat_persen,
-            "tgl_invoice": str(tgl_invoice), "dpp_invoice": dpp_invoice, "ppn_invoice": ppn_invoice, "total_invoice": total_invoice,
-            "faktur_no": faktur_no, "faktur_tgl": str(faktur_tgl), "faktur_dpp": faktur_dpp, "faktur_ppn": faktur_ppn,
+            "tgl_invoice": tgl_invoice.strftime("%d/%m/%Y"), "dpp_invoice": dpp_invoice, "ppn_invoice": ppn_invoice, "total_invoice": total_invoice,
+            "faktur_no": faktur_no, "faktur_tgl": faktur_tgl.strftime("%d/%m/%Y"), "faktur_dpp": faktur_dpp, "faktur_ppn": faktur_ppn,
             "kesimpulan": kesimpulan,
             "approved": "ya" if approved else "tidak",
-            "alasan": alasan, "tgl_approve": str(tgl_approve)
+            "alasan": alasan, "tgl_approve": tgl_approve.strftime("%d/%m/%Y")
         }
         save_row(row)
         st.success("✅ Data berhasil disimpan!")
@@ -208,6 +216,11 @@ elif menu == "Lihat Data Publik":
 
     if not df.empty:
         df_show = df.copy()
+
+        # Format tanggal
+        for col in ["tgl_kontrak", "mulai", "selesai", "tgl_ba", "tgl_invoice", "faktur_tgl", "tgl_approve"]:
+            df_show[col] = df_show[col].apply(format_tanggal)
+
         df_show["total"] = df_show["total"].apply(format_rupiah)
         df_show["approved_badge"] = df_show["approved"].apply(lambda x: "✅ Approved" if x == "ya" else "❌ Tidak Approved")
         df_show["kesimpulan_badge"] = df_show["kesimpulan"].apply(lambda x: "🟢 OK" if x == "OK" else "🔴 Perlu dicek")
@@ -222,6 +235,10 @@ elif menu == "Lihat Data Publik":
                 return "background-color: #f8d7da; color: #721c24; font-weight: bold;"
             return ""
 
-        st.dataframe(tampil.style.applymap(highlight_badge, subset=["kesimpulan_badge", "approved_badge"]))
+        st.dataframe(
+            tampil.style.applymap(highlight_badge, subset=["kesimpulan_badge", "approved_badge"]),
+            use_container_width=True,
+            height=600
+        )
     else:
         st.info("Belum ada data tersimpan.")
